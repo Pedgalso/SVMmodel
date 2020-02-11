@@ -1,0 +1,119 @@
+---
+title: "ML Coursera"
+author: "Pedro Solera"
+date: "28/01/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+df<-read.csv("pml-training.csv")
+```
+
+## Machine Learning to assess Weight lifting quality 
+
+The following report fits a machine learning model to the Weight Lifting Exercise Dataset [^1] A dataset that has been created to study how well it is executed the exercise of Dumbbell Biceps Curl. This exersice is performed by 6 different subjects that repeat the exercise in 5 different ways, 1 one them correctly and the rest 4 incorrectly, more information at the reference [^2]. 
+
+# Model selection and model fitting strategy.
+
+The paper, Best practices for machine learning in Human movement [^3], reviews a total of 129 papers that fit a machine learning models to study human movement, most of the studies involved datasets collected from accelerometers. In this paper the most common classification model used was the Support Vector Machine. So this model will be fitted and tunned and the results will be compared to the ones produced by originator of the dataset that they have chosen a rainforest model. Additionally, the paper, suggest the following practices:
+
+1. Principal Components analysis to simplify the dataset
+2. Data has to be centered and scaled.
+3. Cross validation to improve predictions
+4. Wide range of metrics for future model comparison. 
+
+
+# Data pre-process
+
+```{r preprocess, include=TRUE, eval=FALSE}
+library(caret)
+
+# Remove near zero variables.
+nzv<-nearZeroVar(df,saveMetrics = TRUE)
+df<-df[,which(nzv$nzv==FALSE)]
+
+# Remove NA values
+na_count <-sapply(df, function(y) sum(length(which(is.na(y)))))
+#table(na_count) indicates that missing values are pretty consistent throughout the data, 67 variables miss 19216 values out of 19622. These variables will be removed.
+rdf<-df[,which(na_count==0)]
+
+# Remove the X and the general time variable. These variables, do not provide relevant information to the model and they are highly correlated to the output as the data was recorded in order.  
+rdf<-rdf[,c(-1,-5)]
+
+prepro<-preProcess(rdf,method=c("center", "scale", "pca"), thresh = 0.99)
+training<-predict(prepro,rdf)
+```
+
+ The data pre-process has consisted of: 
+  
+  1. Removing the variables that were considered near zero. (~60 variables out of 160 were removed)
+  2. From the remaining variables, those that contain a high number of NA were removed (~43 variables out of 100 were removed)
+  3. The variable X, and the time, were removed as well, as these are highly correlated to the output due to the way the data was recorded. (2 out of 57)
+  4. The remaining variables, were centered, scaled and extracted its principal components that make up to 99 of the variance, in total, 40 variables where 1 is the output varialbe. 
+  
+ 
+# Model tunning and Out of sample error
+
+A quick hyper-parameter tunning with 3 different kernels for the support vector machine has been undertaken, the best performing one is the Radial kernel. 
+The cross validation undertaken is 3-folds, to keep the model building simple.
+
+Finally, the predetermined paremeter tunning has elected the polynomial degree = 3, scale = 0.1 and C = 1.
+
+When performing cross validation, the accuracy provided by the model is the averaged one of the 3-folds. The model selected has a pretty good out-of-sample error, so it is expected to perform well with the test data. 
+
+
+```{r tunning, include=TRUE, eval=FALSE}
+
+ctrl <- trainControl(method = "cv", number = 3, verboseIter = TRUE)
+
+modellinear<-train(classe~.,data=training, method="svmLinear", trControl=ctrl)
+
+modelpoly<-train(classe~.,data=training, method="svmPoly", trControl=ctrl)
+
+modelradial<-train(classe~.,data=training, method="svmRadial", trControl=ctrl)
+
+```
+
+# Results
+
+```{r results, include=TRUE, eval=FALSE}
+test<- read.csv("pml-testing.csv")
+
+testing<-predict(prepro, test)
+
+R<-predict(modelradial, testing)
+
+data.frame(Question=test$id, Solution=R)
+
+```
+
+```{r solution, include=TRUE, eval=FALSE}
+
+data.frame(Question=test$id, Solution=R)
+
+```
+
+
+
+# Conclusion
+
+ Support Machine Vector seems to perfom pretty good with little tunning. To improve accuracy, the following activities could be undertaken: 
+ 
+ 1. Compare it with a rainforest model, 
+ 2. Improve the parameter tunning,
+ 3. Build an ensemble model with a rainforest model. 
+
+
+You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+
+
+[^1]: Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+[^2]: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har
+
+[^3]: E. Halilaj, A. Rajagopal, M. Fiterau, J.L. Hicks, T.J. Hastie, S.L. Delp, Machine Learning in Human Movement Biomechanics: Best Practices, Common Pitfalls, and New Opportunities, Journal of Biomechanics (2018), doi:https://doi.org/10.1016/j.jbiomech.2018.09.009
+
+
